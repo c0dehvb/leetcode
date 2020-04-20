@@ -60,49 +60,28 @@ func (s *Stack) Size() int {
 }
 
 func simplifyPath(path string) string {
-	var name string
+	splits := strings.Split(path, "/")
+	if len(splits) == 0 {
+		return "/"
+	}
 	stack := NewStack(len(path))
-	idx := 0
-	for idx < len(path) {
-		sepIdx := strings.Index(path[idx:], "/")
-		if sepIdx != -1 {
-			if sepIdx == 0 {
-				idx++
-				continue
+	for _, name := range splits {
+		if name == ".." {
+			if stack.Size() > 0 {
+				_, _ = stack.Pop()
 			}
-			name = path[idx : idx+sepIdx]
-			idx += sepIdx + 1
-			dealName(stack, name)
-		} else {
-			name := path[idx:]
-			dealName(stack, name)
-			break
+		} else if name != "." && name != "" {
+			_ = stack.Push(name)
 		}
 	}
 
 	var ans string
-	if stack.Size() > 0 {
-		for stack.Size() > 0 {
-			elem, _ := stack.Pop()
-			ans = "/" + elem + ans
-		}
-	} else {
+	for stack.Size() > 0 {
+		elem, _ := stack.Pop()
+		ans = "/" + elem + ans
+	}
+	if ans == "" {
 		ans = "/"
 	}
 	return ans
-}
-
-func dealName(stack *Stack, name string) *Stack {
-	// 处理'/'前缀
-	if name[0] == '/' && len(name) > 1 {
-		name = name[1:]
-	}
-	if name == ".." {
-		if stack.Size() > 0 {
-			_, _ = stack.Pop()
-		}
-	} else if name != "." {
-		_ = stack.Push(name)
-	}
-	return stack
 }
