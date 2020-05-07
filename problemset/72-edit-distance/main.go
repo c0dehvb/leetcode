@@ -1,14 +1,19 @@
 package main
 
 import (
-	"fmt"
 	"github.com/c0dehvb/leetcode/pkg/test"
 )
 
 func main() {
 	testCases := []test.TestCase{
+		{Input: []string{"sea", "eat"}, Answer: 2},
 		{Input: []string{"horse", "ros"}, Answer: 3},
 		{Input: []string{"intention", "execution"}, Answer: 5},
+		{Input: []string{"", "aaaaa"}, Answer: 5},
+		{Input: []string{"aaaaa", ""}, Answer: 5},
+		{Input: []string{"adada", "aaa"}, Answer: 2},
+		{Input: []string{"adada", "ddd"}, Answer: 3},
+		{Input: []string{"dinitrophenylhydrazine", "acetylphenylhydrazine"}, Answer: 6},
 	}
 
 	test.SimpleCheck(testCases, func(input interface{}) (result interface{}) {
@@ -18,138 +23,48 @@ func main() {
 
 //----------------------------------------下面才是解题代码----------------------------------------
 
-type Item struct {
-	word  string
-	score int
-}
-
-type Queue struct {
-	elems []Item
-	l, r  int
-}
-
-var (
-	ErrQueueEmpty = fmt.Errorf("queue is empty")
-)
-
-func NewQueue(cap int) *Queue {
-	return &Queue{
-		elems: make([]Item, cap),
-		l:     0,
-		r:     0,
-	}
-}
-
-func (q *Queue) Push(d Item) {
-	if q.r < len(q.elems) {
-		q.elems[q.r] = d
-		q.r++
-	} else {
-		q.elems = append(q.elems, make([]Item, len(q.elems))...)
-		q.Push(d)
-	}
-}
-
-func (q *Queue) Pop() (Item, error) {
-	p := Item{}
-	if q.Size() == 0 {
-		return p, ErrQueueEmpty
-	} else {
-		p = q.elems[q.l]
-		q.l++
-		return p, nil
-	}
-}
-
-func (q *Queue) Size() int {
-	return q.r - q.l
-}
-
-var ans int
-
-// 推论1：两个单词变换次数不大于max(len(word1), len(word2))
 func minDistance(word1 string, word2 string) int {
-	dist := make(map[string]int)
-	dist[word1] = 0
-	initScore := score(word1, word2)
-	if initScore == 0 {
-		return 0
+	dp := make([][]int, len(word2)+1)
+	for i := 0; i < len(dp); i++ {
+		dp[i] = make([]int, len(word1)+2)
+		for j := 0; j < len(dp[i]); j++ {
+			dp[i][j] = len(word1) + len(word2) + 10
+		}
 	}
-	ans = initScore
-	queue := NewQueue(initScore + 1)
-	queue.Push(Item{word1, initScore})
-	for queue.Size() > 0 {
-		head, _ := queue.Pop()
-		initScore = head.score
-		word := head.word
+	for j := 0; j <= len(word1); j++ {
+		dp[0][j] = j
+	}
 
-		// replace
-		for i := 0; i < len(word); i++ {
-			newWord := replace(word, i)
-			dealNewWord(newWord, word, word2, dist, initScore, queue)
+	for i := 1; i <= len(word2); i++ {
+		for j := 1; j <= len(word1)+1; j++ {
+			if j < len(word1)+1 {
+				// 有相同字母则直接使用
+				if word2[i-1] == word1[j-1] {
+					dp[i][j] = MinInt(dp[i-1][j-1], dp[i][j])
+				}
+				// 替换掉第j个字母为问号
+				dp[i][j] = MinInt(dp[i-1][j-1]+1, dp[i][j])
+				// 在第j个字母前插入问号
+				dp[i][j-1] = MinInt(dp[i-1][j-1]+1, dp[i][j-1])
+
+				// 后面多出来的当作删除操作
+				for k := j + 1; k <= len(word1); k++ {
+					dp[i][k] = MinInt(dp[i][j]+k-j, dp[i][k])
+				}
+			} else { // 在末尾插入问号
+				dp[i][j] = MinInt(dp[i-1][j-1]+1, dp[i-1][j]+1, dp[i][j])
+			}
 		}
+	}
+	return MinInt(dp[len(dp)-1][len(dp[0])-1], dp[len(dp)-1][len(dp[0])-2])
+}
 
-		// insert
-		for i := 0; i <= len(word); i++ {
-			newWord := insert(word, i)
-			dealNewWord(newWord, word, word2, dist, initScore, queue)
-		}
-
-		// delete
-		for i := 0; i < len(word); i++ {
-			newWord := remove(word, i)
-			dealNewWord(newWord, word, word2, dist, initScore, queue)
+func MinInt(nums ...int) int {
+	ans := nums[0]
+	for _, n := range nums {
+		if n < ans {
+			ans = n
 		}
 	}
 	return ans
-}
-
-func dealNewWord(newWord, srcWord, word2 string, dist map[string]int, initScore int, queue *Queue) {
-	if _, found := dist[newWord]; !found || dist[newWord] > dist[srcWord]+1 {
-		dist[newWord] = dist[srcWord] + 1
-		newScore := score(newWord, word2)
-		if newScore < initScore && newScore > 0 {
-			queue.Push(Item{newWord, newScore})
-		} else if newScore == 0 && dist[newWord] < ans {
-			ans = dist[newWord]
-		}
-	}
-}
-
-func score(word1 string, word2 string) int {
-	ans := 0
-	s1Idx := 0
-	s2Idx := 0
-	for s1Idx < len(word1) && s2Idx < len(word2) {
-		if word1[s1Idx] == word2[s2Idx] || word1[s1Idx] == '?' {
-			s2Idx++
-		} else {
-			ans++
-		}
-		s1Idx++
-	}
-	ans += len(word2) - s2Idx + len(word1) - s1Idx
-	return ans
-}
-
-func insert(word string, idx int) string {
-	if idx < len(word) {
-		return word[:idx] + "?" + word[idx:]
-	} else {
-		return word + "?"
-	}
-}
-
-func remove(word string, idx int) string {
-	if idx < len(word)-1 {
-		return word[:idx] + word[idx+1:]
-	} else {
-		return word[:idx]
-	}
-}
-
-func replace(word string, i int) string {
-	b := []byte(word)
-	b[i] = '?'
-	return string(b)
 }
